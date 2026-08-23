@@ -18,9 +18,7 @@ const C_MAUVE: Color = Color::Rgb(203, 166, 247);
 const C_BLUE: Color = Color::Rgb(137, 180, 250);
 const C_LAVENDER: Color = Color::Rgb(180, 190, 254);
 const C_GREEN: Color = Color::Rgb(166, 227, 161);
-const C_BASE: Color = Color::Rgb(30, 30, 46);
 const C_SURFACE: Color = Color::Rgb(46, 52, 66);
-const C_ORANGE: Color = Color::Rgb(253, 150, 83);
 const C_YELLOW: Color = Color::Rgb(255, 204, 89);
 const C_ROSE: Color = Color::Rgb(245, 104, 168);
 
@@ -30,9 +28,7 @@ struct App {
     recent_commits: Vec<String>,
     start_time: Instant,
     chart_data: Vec<f64>,
-    scroll: i16,
     focus_idx: usize,
-    quit_requested: bool,
     show_graph: bool,
 }
 
@@ -54,9 +50,7 @@ impl App {
             ],
             start_time: Instant::now(),
             chart_data,
-            scroll: 0,
             focus_idx: 0,
-            quit_requested: false,
             show_graph: false,
         }
     }
