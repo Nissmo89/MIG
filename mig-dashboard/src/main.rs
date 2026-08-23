@@ -33,12 +33,13 @@ struct App {
     scroll: i16,
     focus_idx: usize,
     quit_requested: bool,
+    show_graph: bool,
 }
 
 impl App {
     fn new() -> App {
-        let chart_data: Vec<f64> = (0..10)
-            .map(|i| (i as f64 * 0.5).sin() * 5.0)
+        let chart_data: Vec<f64> = (0..200)
+            .map(|i| (i as f64 * 0.1).sin() * 5.0)
             .collect();
         App {
             projects: vec![
@@ -56,6 +57,7 @@ impl App {
             scroll: 0,
             focus_idx: 0,
             quit_requested: false,
+            show_graph: false,
         }
     }
 }
@@ -202,49 +204,53 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
             f.render_widget(api_status, left_chunks[1]);
 
             // Right half: commits + chart
-            let right_chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([Constraint::Percentage(80), Constraint::Percentage(20)])
-                .split(body_chunks[1]);
+            let right_chunk = body_chunks[1];
 
-            // Commits
-            let commits: Vec<ListItem> = app.recent_commits.iter().map(|c| {
-                ListItem::new(Line::from(Span::styled(c, Style::default().fg(C_LAVENDER))))
-            }).collect();
-            let commits_list = List::new(commits)
-                .block(Block::default()
-                    .title(" Activity Feed ")
-                    .borders(Borders::ALL)
-                    .border_type(BorderType::Rounded)
-                    .border_style(Style::default().fg(C_MAUVE)));
-            f.render_widget(commits_list, right_chunks[0]);
+            if app.show_graph {
+                // Chart
+                app.chart_data.remove(0);
+                let new_val: f64 = (elapsed * 1.0).sin() * 5.0;
+                app.chart_data.push(new_val);
 
-            // Chart
-            app.chart_data.remove(0);
-            let new_val: f64 = (elapsed * 1.0).sin() * 5.0;
-            app.chart_data.push(new_val);
-
-            let data_points: Vec<(f64, f64)> = app
-                .chart_data
-                .iter()
-                .enumerate()
-                .map(|(i, &y)| (i as f64, y))
-                .collect();
-            let dataset = Dataset::default()
-                .data(&data_points)
-                .style(Style::default().fg(C_GREEN).add_modifier(Modifier::BOLD));
-            let chart = Chart::new(vec![dataset])
-                .x_axis(
-                    Axis::default()
-                        .bounds([0.0, 10.0])
-                        .style(Style::default().fg(C_SURFACE)),
-                )
-                .y_axis(
-                    Axis::default()
-                        .bounds([-5.0, 5.0])
-                        .style(Style::default().fg(C_SURFACE)),
-                );
-            f.render_widget(chart, right_chunks[1]);
+                let data_points: Vec<(f64, f64)> = app
+                    .chart_data
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &y)| (i as f64, y))
+                    .collect();
+                let dataset = Dataset::default()
+                    .data(&data_points)
+                    .style(Style::default().fg(C_GREEN).add_modifier(Modifier::BOLD));
+                let chart = Chart::new(vec![dataset])
+                    .block(Block::default()
+                        .title(" Metrics Graph ")
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Rounded)
+                        .border_style(Style::default().fg(C_MAUVE)))
+                    .x_axis(
+                        Axis::default()
+                            .bounds([0.0, 200.0])
+                            .style(Style::default().fg(C_SURFACE)),
+                    )
+                    .y_axis(
+                        Axis::default()
+                            .bounds([-5.0, 5.0])
+                            .style(Style::default().fg(C_SURFACE)),
+                    );
+                f.render_widget(chart, right_chunk);
+            } else {
+                // Commits
+                let commits: Vec<ListItem> = app.recent_commits.iter().map(|c| {
+                    ListItem::new(Line::from(Span::styled(c, Style::default().fg(C_LAVENDER))))
+                }).collect();
+                let commits_list = List::new(commits)
+                    .block(Block::default()
+                        .title(" Activity Feed ")
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Rounded)
+                        .border_style(Style::default().fg(C_MAUVE)));
+                f.render_widget(commits_list, right_chunk);
+            }
 
             // ------------------------------------------------
             // 3. BOTTOM STRIP: interactive buttons
@@ -270,7 +276,10 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
             } else {
                 Style::default().fg(C_MAUVE)
             };
-            let graph_btn = Paragraph::new(" Graph ")
+            
+            let btn_label = if app.show_graph { " Show Commits " } else { " Show Graph " };
+            
+            let graph_btn = Paragraph::new(btn_label)
                 .style(graph_btn_style)
                 .alignment(Alignment::Center)
                 .block(Block::default()
@@ -330,8 +339,8 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                             // Quit button activated
                             return Ok(());
                         } else {
-                            // Graph button pressed: toggle focus
-                            app.focus_idx = (app.focus_idx + 1) % 2;
+                            // Graph button pressed: toggle graph view
+                            app.show_graph = !app.show_graph;
                         }
                     }
                     KeyCode::Char('q') => {
