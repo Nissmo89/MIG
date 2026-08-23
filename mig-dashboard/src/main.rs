@@ -13,11 +13,12 @@ use ratatui::{
 };
 use std::{error::Error, io, time::{Duration, Instant}};
 
-// Cyberpunk Theme Colors
-const NEON_PINK: Color = Color::Rgb(255, 0, 255);
-const NEON_CYAN: Color = Color::Rgb(0, 255, 255);
-const NEON_YELLOW: Color = Color::Rgb(255, 255, 0);
-const DARK_BG: Color = Color::Rgb(10, 10, 15);
+// Catppuccin Mocha Theme Colors
+const C_MAUVE: Color = Color::Rgb(203, 166, 247);
+const C_BLUE: Color = Color::Rgb(137, 180, 250);
+const C_LAVENDER: Color = Color::Rgb(180, 190, 254);
+const C_GREEN: Color = Color::Rgb(166, 227, 161);
+const C_BASE: Color = Color::Rgb(30, 30, 46);
 
 struct App {
     projects: Vec<String>,
@@ -80,28 +81,28 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                 ])
                 .split(size);
 
-            // Time based blink effect
+            // Time based blink effect for status
             let elapsed = app.start_time.elapsed().as_secs_f32();
-            let blink = (elapsed * 3.0).sin() > 0.0;
-            let neon_color = if blink { NEON_PINK } else { NEON_CYAN };
+            let blink = (elapsed * 2.0).sin() > 0.0;
+            let status_color = if blink { C_GREEN } else { C_LAVENDER };
 
-            // 1. BIG MIG LOGO (Cyberpunk Style)
+            // 1. BIG MIG LOGO (Catppuccin Style)
             let mig_logo = vec![
-                Line::from(Span::styled(r#" ███╗   ███╗██╗ ██████╗ "#, Style::default().fg(NEON_CYAN).add_modifier(Modifier::BOLD))),
-                Line::from(Span::styled(r#" ████╗ ████║██║██╔════╝ "#, Style::default().fg(NEON_CYAN).add_modifier(Modifier::BOLD))),
-                Line::from(Span::styled(r#" ██╔████╔██║██║██║  ███╗"#, Style::default().fg(NEON_PINK).add_modifier(Modifier::BOLD))),
-                Line::from(Span::styled(r#" ██║╚██╔╝██║██║██║   ██║"#, Style::default().fg(NEON_PINK).add_modifier(Modifier::BOLD))),
-                Line::from(Span::styled(r#" ██║ ╚═╝ ██║██║╚██████╔╝"#, Style::default().fg(NEON_YELLOW).add_modifier(Modifier::BOLD))),
-                Line::from(Span::styled(r#" ╚═╝     ╚═╝╚═╝ ╚═════╝ "#, Style::default().fg(NEON_YELLOW).add_modifier(Modifier::BOLD))),
-                Line::from(Span::styled(if blink { ">>> NEURAL LINK ACTIVE <<<" } else { ">>> STANDBY <<<" }, Style::default().fg(neon_color))),
+                Line::from(Span::styled(r#" ███╗   ███╗██╗ ██████╗ "#, Style::default().fg(C_MAUVE).add_modifier(Modifier::BOLD))),
+                Line::from(Span::styled(r#" ████╗ ████║██║██╔════╝ "#, Style::default().fg(C_MAUVE).add_modifier(Modifier::BOLD))),
+                Line::from(Span::styled(r#" ██╔████╔██║██║██║  ███╗"#, Style::default().fg(C_BLUE).add_modifier(Modifier::BOLD))),
+                Line::from(Span::styled(r#" ██║╚██╔╝██║██║██║   ██║"#, Style::default().fg(C_BLUE).add_modifier(Modifier::BOLD))),
+                Line::from(Span::styled(r#" ██║ ╚═╝ ██║██║╚██████╔╝"#, Style::default().fg(C_LAVENDER).add_modifier(Modifier::BOLD))),
+                Line::from(Span::styled(r#" ╚═╝     ╚═╝╚═╝ ╚═════╝ "#, Style::default().fg(C_LAVENDER).add_modifier(Modifier::BOLD))),
+                Line::from(Span::styled(if blink { "● SYSTEM ONLINE" } else { "○ SYSTEM ONLINE" }, Style::default().fg(status_color))),
             ];
 
             let logo_widget = Paragraph::new(mig_logo)
                 .alignment(Alignment::Center)
                 .block(Block::default()
                     .borders(Borders::ALL)
-                    .border_type(BorderType::Double)
-                    .border_style(Style::default().fg(NEON_CYAN))
+                    .border_type(BorderType::Rounded)
+                    .border_style(Style::default().fg(C_MAUVE))
                 );
             f.render_widget(logo_widget, chunks[0]);
 
@@ -116,38 +117,38 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                 .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
                 .split(body_chunks[0]);
 
-            // 2. PROJECTS (Cyberpunk List)
+            // 2. PROJECTS (Catppuccin List)
             let projects: Vec<ListItem> = app.projects.iter().map(|p| {
-                ListItem::new(Line::from(Span::styled(p, Style::default().fg(NEON_YELLOW))))
+                ListItem::new(Line::from(Span::styled(p, Style::default().fg(C_LAVENDER))))
             }).collect();
             let projects_list = List::new(projects)
                 .block(Block::default()
-                    .title(" SYSTEM_TARGETS ")
+                    .title(" Managed Projects ")
                     .borders(Borders::ALL)
-                    .border_type(BorderType::Thick)
-                    .border_style(Style::default().fg(NEON_PINK)));
+                    .border_type(BorderType::Rounded)
+                    .border_style(Style::default().fg(C_BLUE)));
             f.render_widget(projects_list, left_chunks[0]);
 
             // 3. API STATUS
             let api_status = Paragraph::new(app.api_status.as_str())
-                .style(Style::default().fg(Color::White))
+                .style(Style::default().fg(C_LAVENDER))
                 .block(Block::default()
-                    .title(" UPLINK_STATUS ")
+                    .title(" API Connections ")
                     .borders(Borders::ALL)
-                    .border_type(BorderType::Thick)
-                    .border_style(Style::default().fg(NEON_CYAN)));
+                    .border_type(BorderType::Rounded)
+                    .border_style(Style::default().fg(C_BLUE)));
             f.render_widget(api_status, left_chunks[1]);
 
             // 4. RECENT COMMITS
             let commits: Vec<ListItem> = app.recent_commits.iter().map(|c| {
-                ListItem::new(Line::from(Span::styled(c, Style::default().fg(Color::Green))))
+                ListItem::new(Line::from(Span::styled(c, Style::default().fg(C_LAVENDER))))
             }).collect();
             let commits_list = List::new(commits)
                 .block(Block::default()
-                    .title(" NEURAL_LOGS ")
+                    .title(" Activity Feed ")
                     .borders(Borders::ALL)
-                    .border_type(BorderType::Double)
-                    .border_style(Style::default().fg(neon_color)));
+                    .border_type(BorderType::Rounded)
+                    .border_style(Style::default().fg(C_MAUVE)));
             f.render_widget(commits_list, body_chunks[1]);
         })?;
 
