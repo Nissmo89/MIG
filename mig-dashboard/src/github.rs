@@ -77,9 +77,10 @@ impl GitHubContributionService {
             }
         }
 
-        // Generate date ranges dynamically
-        let to = Utc::now();
-        let from = to - Duration::days(365);
+        // Generate stable date ranges to prevent GitHub API cache busting / flickering
+        let now = Utc::now();
+        let to_str = format!("{}T23:59:59Z", now.format("%Y-%m-%d"));
+        let from_str = format!("{}T00:00:00Z", (now - Duration::days(365)).format("%Y-%m-%d"));
         
         let query = r#"
             query ContributionCalendar($username: String!, $from: DateTime, $to: DateTime) {
@@ -103,8 +104,8 @@ impl GitHubContributionService {
             "query": query,
             "variables": {
                 "username": username,
-                "from": from.to_rfc3339(),
-                "to": to.to_rfc3339(),
+                "from": from_str,
+                "to": to_str,
             }
         });
         
