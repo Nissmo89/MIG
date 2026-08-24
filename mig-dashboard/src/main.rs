@@ -287,6 +287,15 @@ impl App {
             .map(|i| (i as f64 * 0.1).sin() * 5.0)
             .collect();
 
+        let mut groq_stats = None;
+        let mut stats_dir = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+        stats_dir.push(".mig");
+        let g_stats_file = stats_dir.join("groq_analytics.json");
+        if let Ok(c) = std::fs::read_to_string(&g_stats_file) {
+            if let Ok(g) = serde_json::from_str::<GroqStats>(&c) {
+                groq_stats = Some(g);
+            }
+        }
         App {
             projects: loaded_projects,
             recent_commits,
@@ -484,13 +493,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                 }
                 2 => {
                     // Status view
-                    let cwd = env::current_dir().unwrap_or_default();
-                    let mut cwd_str = cwd.to_string_lossy().to_string();
-                    if let Ok(home) = env::var("HOME") {
-                        if cwd_str.starts_with(&home) {
-                            cwd_str = cwd_str.replacen(&home, "~", 1);
-                        }
-                    }
+
 
                     let p_bars = (app.api_status.limit_percent / 5.0).round() as usize;
                     let p_bars = p_bars.min(20);
@@ -660,7 +663,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                         text.push(Line::from(""));
                         
                         // Legend
-                        let mut legend = vec![
+                        let legend = vec![
                             Span::raw("   Less "),
                             Span::styled("■ ", Style::default().fg(Color::Rgb(22, 27, 34))),
                             Span::styled("■ ", Style::default().fg(Color::Rgb(14, 68, 41))),
@@ -811,6 +814,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
             let quit_btn = Paragraph::new(" Quit ")
                 .style(quit_btn_style).alignment(Alignment::Center)
                 .block(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded).border_style(Style::default().fg(C_ROSE)));
+            f.render_widget(quit_btn, quit_btn_rect);
             // --- Hover Tooltip Logic ---
             if let Some((mx, my)) = app.mouse_pos {
                 let mut tooltip_text = None;
@@ -865,7 +869,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                 if let Some(text) = tooltip_text {
                     let text_len = text.len() as u16;
                     let mut tx = mx + 1;
-                    let mut ty = my.saturating_sub(1);
+                    let ty = my.saturating_sub(1);
                     if tx + text_len > size.width {
                         tx = mx.saturating_sub(text_len + 1);
                     }
