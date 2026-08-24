@@ -71,7 +71,11 @@ def dashboard():
     # Locate the mig-dashboard rust project
     dash_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "mig-dashboard"))
     if os.path.exists(dash_path):
-        os.system(f"cd {dash_path} && cargo run -q")
+        release_bin = os.path.join(dash_path, "target", "release", "mig-dashboard")
+        if os.path.exists(release_bin):
+            os.system(release_bin)
+        else:
+            os.system(f"cd {dash_path} && cargo run -q")
     else:
         click.echo("mig-dashboard Rust project not found.")
 

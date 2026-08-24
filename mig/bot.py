@@ -85,7 +85,6 @@ def generate_contribution(state: AgentState):
         if hasattr(response, 'response_metadata') and response.response_metadata:
             model_name = response.response_metadata.get('model_name', "unknown")
             
-        # Calculate approximate cost based on Groq pricing (per 1M tokens)
         prices = {
             "llama3-8b-8192": (0.05, 0.08),
             "llama3-70b-8192": (0.59, 0.79),
@@ -93,7 +92,6 @@ def generate_contribution(state: AgentState):
             "gemma-7b-it": (0.07, 0.07),
         }
         
-        # default to 70b price if unknown
         price_in, price_out = prices.get(model_name.lower(), (0.59, 0.79))
         cost = (input_tokens / 1_000_000) * price_in + (output_tokens / 1_000_000) * price_out
             
@@ -102,7 +100,6 @@ def generate_contribution(state: AgentState):
         stats_file = os.path.join(stats_dir, "stats.json")
         analytics_file = os.path.join(stats_dir, "groq_analytics.json")
         
-        # 1. Update basic stats.json
         stats = {"lifetime_tokens": 0, "peak_tokens": 0, "longest_task": 0.0, "activity": []}
         if os.path.exists(stats_file):
             try:
@@ -116,7 +113,6 @@ def generate_contribution(state: AgentState):
         stats["activity"].append(today)
         with open(stats_file, "w") as f: json.dump(stats, f)
         
-        # 2. Update groq_analytics.json
         groq_stats = {"total_cost": 0.0, "models": {}, "daily": {}}
         if os.path.exists(analytics_file):
             try:
@@ -124,15 +120,12 @@ def generate_contribution(state: AgentState):
             except Exception: pass
             
         groq_stats["total_cost"] += cost
-        
-        # Update per model stats
         if model_name not in groq_stats["models"]:
             groq_stats["models"][model_name] = {"total_tokens": 0, "cost": 0.0, "runs": 0}
         groq_stats["models"][model_name]["total_tokens"] += total_tokens
         groq_stats["models"][model_name]["cost"] += cost
         groq_stats["models"][model_name]["runs"] += 1
         
-        # Update daily stats
         if today not in groq_stats["daily"]:
             groq_stats["daily"][today] = {"tokens": 0, "cost": 0.0}
         groq_stats["daily"][today]["tokens"] += total_tokens
