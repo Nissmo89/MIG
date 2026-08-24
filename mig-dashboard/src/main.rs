@@ -793,6 +793,19 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                                 app.right_panel_view = (app.right_panel_view + 1) % 5;
                             }
                         }
+                                                KeyCode::Char('r') => {
+                            if let Ok(rt) = tokio::runtime::Runtime::new() {
+                                rt.block_on(async {
+                                    let svc = GitHubContributionService::new();
+                                    if let (Some(username), Some(token)) = (std::env::var("GITHUB_USERNAME").ok(), std::env::var("GITHUB_TOKEN").ok()) {
+                                        match svc.get_contributions(&username, &token, true).await {
+                                            Ok(cal) => app.github_cal = Some(cal),
+                                            Err(e) => app.github_error = Some(e),
+                                        }
+                                    }
+                                });
+                            }
+                        }
                         KeyCode::Char('q') => {
                             return Ok(());
                         }
