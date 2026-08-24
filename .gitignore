@@ -39,3 +39,5 @@ wheels/
 # OS Files
 .DS_Store
 Thumbs.db
+mig-dashboard/target/
+Cargo.lock

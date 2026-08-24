@@ -7,6 +7,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from typing import TypedDict, Annotated, List, Optional
 import operator
 from datetime import datetime
+import time
 
 from mig.llm import get_llm
 from mig.git_ops import push_code
@@ -48,6 +49,7 @@ def generate_contribution(state: AgentState):
     
     messages = [system_msg] + state["messages"]
     
+    start_time = time.time()
     response = llm.invoke(messages)
     
     try:
@@ -62,6 +64,48 @@ def generate_contribution(state: AgentState):
             content = content[:-3]
         
         data = json.loads(content.strip())
+        
+        # --- Update Global Stats ---
+        duration = time.time() - start_time
+        tokens = 0
+        if hasattr(response, 'usage_metadata') and response.usage_metadata:
+            tokens = response.usage_metadata.get('total_tokens', 0)
+        if tokens == 0:
+            # Fallback estimation
+            tokens = (len(str(messages)) + len(content)) // 4
+            
+        stats_dir = os.path.expanduser("~/.mig")
+        os.makedirs(stats_dir, exist_ok=True)
+        stats_file = os.path.join(stats_dir, "stats.json")
+        
+        stats = {
+            "lifetime_tokens": 0,
+            "peak_tokens": 0,
+            "longest_task": 0.0,
+            "activity": []
+        }
+        
+        if os.path.exists(stats_file):
+            try:
+                with open(stats_file, "r") as f:
+                    stats.update(json.load(f))
+            except Exception:
+                pass
+                
+        stats["lifetime_tokens"] += tokens
+        if tokens > stats["peak_tokens"]:
+            stats["peak_tokens"] = tokens
+            
+        if duration > stats["longest_task"]:
+            stats["longest_task"] = duration
+            
+        today = datetime.now().strftime("%Y-%m-%d")
+        stats["activity"].append(today)
+        
+        with open(stats_file, "w") as f:
+            json.dump(stats, f)
+        # ---------------------------
+
         return {
             "messages": [response],
             "filename": data["filename"],
