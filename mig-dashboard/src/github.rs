@@ -112,6 +112,7 @@ impl GitHubContributionService {
         let resp = self.client.post("https://api.github.com/graphql")
             .header("Authorization", format!("Bearer {}", token))
             .header("User-Agent", "mig-dashboard")
+            .header("Accept-Encoding", "identity")
             .json(&req_body)
             .send()
             .await
