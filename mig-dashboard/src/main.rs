@@ -42,6 +42,28 @@ struct ApiStatus {
     limit_percent: f64,
 }
 
+use std::collections::HashMap;
+
+#[derive(Debug, Default, serde::Deserialize, Clone)]
+struct GroqModelStats {
+    total_tokens: u64,
+    cost: f64,
+    runs: u64,
+}
+
+#[derive(Debug, Default, serde::Deserialize, Clone)]
+struct GroqDailyStats {
+    tokens: u64,
+    cost: f64,
+}
+
+#[derive(Debug, Default, serde::Deserialize, Clone)]
+struct GroqStats {
+    total_cost: f64,
+    models: HashMap<String, GroqModelStats>,
+    daily: HashMap<String, GroqDailyStats>,
+}
+
 struct App {
     projects: Vec<String>,
     recent_commits: Vec<String>,
@@ -57,6 +79,7 @@ struct App {
     github_cal: Option<ContributionCalendar>,
     github_error: Option<String>,
     mouse_pos: Option<(u16, u16)>,
+    groq_stats: Option<GroqStats>,
 }
 
 impl App {
@@ -279,6 +302,7 @@ impl App {
             github_cal,
             github_error,
             mouse_pos: None,
+            groq_stats,
         }
     }
 
@@ -790,7 +814,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                             if app.focus_idx == 1 {
                                 return Ok(());
                             } else {
-                                app.right_panel_view = (app.right_panel_view + 1) % 5;
+                                app.right_panel_view = (app.right_panel_view + 1) % 6;
                             }
                         }
                                                 KeyCode::Char('r') => {
@@ -809,7 +833,95 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                         KeyCode::Char('q') => {
                             return Ok(());
                         }
-                        _ => {}
+                                        5 => {
+                    // Groq Analytics
+                    if let Some(g_stats) = &app.groq_stats {
+                        let chunks = Layout::default()
+                            .direction(Direction::Vertical)
+                            .constraints([Constraint::Length(12), Constraint::Min(5)].as_ref())
+                            .split(right_chunk);
+
+                        let top_chunks = Layout::default()
+                            .direction(Direction::Horizontal)
+                            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+                            .split(chunks[0]);
+
+                        // 1. Cost & Activity Bar Chart (Last 7 days)
+                        // Sort daily by date
+                        let mut days: Vec<(&String, &GroqDailyStats)> = g_stats.daily.iter().collect();
+                        days.sort_by(|a, b| a.0.cmp(b.0));
+                        let recent_days: Vec<_> = days.iter().rev().take(7).rev().collect();
+                        
+                        let mut cost_data = Vec::new();
+                        let mut token_data = Vec::new();
+                        let mut labels = Vec::new(); // keep strings alive
+                        
+                        for (d, s) in &recent_days {
+                            let label = if d.len() >= 10 { d[5..10].to_string() } else { (*d).clone() };
+                            labels.push(label);
+                        }
+                        
+                        let mut cost_bars = Vec::new();
+                        let mut token_bars = Vec::new();
+                        for (i, (_, s)) in recent_days.iter().enumerate() {
+                            let cost_cents = (s.cost * 1000.0) as u64; // scale for visibility
+                            cost_bars.push((labels[i].as_str(), cost_cents));
+                            
+                            let tokens = (s.tokens / 1000) as u64;
+                            token_bars.push((labels[i].as_str(), tokens));
+                        }
+
+                        let barchart_cost = ratatui::widgets::BarChart::default()
+                            .block(Block::default().title(" Daily Cost (m$) ").borders(Borders::ALL).border_type(BorderType::Rounded).border_style(Style::default().fg(C_ROSE)))
+                            .data(&cost_bars)
+                            .bar_width(5)
+                            .bar_gap(1)
+                            .bar_style(Style::default().fg(C_ROSE))
+                            .value_style(Style::default().fg(C_SURFACE).bg(C_ROSE));
+
+                        let barchart_tokens = ratatui::widgets::BarChart::default()
+                            .block(Block::default().title(" Daily Tokens (k) ").borders(Borders::ALL).border_type(BorderType::Rounded).border_style(Style::default().fg(C_GREEN)))
+                            .data(&token_bars)
+                            .bar_width(5)
+                            .bar_gap(1)
+                            .bar_style(Style::default().fg(C_GREEN))
+                            .value_style(Style::default().fg(C_SURFACE).bg(C_GREEN));
+
+                        f.render_widget(barchart_cost, top_chunks[0]);
+                        f.render_widget(barchart_tokens, top_chunks[1]);
+
+                        // 2. Model Breakdown
+                        let mut model_lines = vec![
+                            Line::from(vec![Span::styled("  >_ Model Usage Breakdown", Style::default().fg(C_MAUVE).add_modifier(Modifier::BOLD))]),
+                            Line::from(format!("  Total Spend: ${:.4}", g_stats.total_cost)),
+                            Line::from(""),
+                        ];
+                        
+                        let mut models: Vec<_> = g_stats.models.iter().collect();
+                        models.sort_by(|a, b| b.1.cost.partial_cmp(&a.1.cost).unwrap_or(std::cmp::Ordering::Equal));
+                        
+                        for (m, s) in models {
+                            let bar_len = ((s.cost / g_stats.total_cost.max(0.0001)) * 20.0).round() as usize;
+                            let bar_str = format!("{}{} ${:.4}", "█".repeat(bar_len), "░".repeat(20usize.saturating_sub(bar_len)), s.cost);
+                            model_lines.push(Line::from(vec![
+                                Span::styled(format!("  {:<20} ", m), Style::default().add_modifier(Modifier::BOLD)),
+                                Span::styled(bar_str, Style::default().fg(C_MAUVE)),
+                                Span::raw(format!("   ({} runs, {} tokens)", s.runs, s.total_tokens))
+                            ]));
+                        }
+
+                        let model_widget = Paragraph::new(model_lines)
+                            .block(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded).border_style(Style::default().fg(C_LAVENDER)));
+                        
+                        f.render_widget(model_widget, chunks[1]);
+                    } else {
+                        let msg = Paragraph::new("No Groq analytics data found. Run `mig run` to generate stats.")
+                            .alignment(Alignment::Center)
+                            .block(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded));
+                        f.render_widget(msg, right_chunk);
+                    }
+                }
+                _ => {}
                     }
                 }
                                 Event::Mouse(mouse_event) => {
@@ -820,7 +932,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
 
 
                         if is_inside(graph_btn_rect, col, row) {
-                            app.right_panel_view = (app.right_panel_view + 1) % 5;
+                            app.right_panel_view = (app.right_panel_view + 1) % 6;
                         } else if is_inside(quit_btn_rect, col, row) {
                             return Ok(());
                         } else if is_inside(tab_0_rect, col, row) && app.keys_status[0] {
@@ -830,6 +942,94 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                         } else if is_inside(tab_2_rect, col, row) && app.keys_status[2] {
                             app.active_tab = 2;
                         }
+                    }
+                }
+                                5 => {
+                    // Groq Analytics
+                    if let Some(g_stats) = &app.groq_stats {
+                        let chunks = Layout::default()
+                            .direction(Direction::Vertical)
+                            .constraints([Constraint::Length(12), Constraint::Min(5)].as_ref())
+                            .split(right_chunk);
+
+                        let top_chunks = Layout::default()
+                            .direction(Direction::Horizontal)
+                            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+                            .split(chunks[0]);
+
+                        // 1. Cost & Activity Bar Chart (Last 7 days)
+                        // Sort daily by date
+                        let mut days: Vec<(&String, &GroqDailyStats)> = g_stats.daily.iter().collect();
+                        days.sort_by(|a, b| a.0.cmp(b.0));
+                        let recent_days: Vec<_> = days.iter().rev().take(7).rev().collect();
+                        
+                        let mut cost_data = Vec::new();
+                        let mut token_data = Vec::new();
+                        let mut labels = Vec::new(); // keep strings alive
+                        
+                        for (d, s) in &recent_days {
+                            let label = if d.len() >= 10 { d[5..10].to_string() } else { (*d).clone() };
+                            labels.push(label);
+                        }
+                        
+                        let mut cost_bars = Vec::new();
+                        let mut token_bars = Vec::new();
+                        for (i, (_, s)) in recent_days.iter().enumerate() {
+                            let cost_cents = (s.cost * 1000.0) as u64; // scale for visibility
+                            cost_bars.push((labels[i].as_str(), cost_cents));
+                            
+                            let tokens = (s.tokens / 1000) as u64;
+                            token_bars.push((labels[i].as_str(), tokens));
+                        }
+
+                        let barchart_cost = ratatui::widgets::BarChart::default()
+                            .block(Block::default().title(" Daily Cost (m$) ").borders(Borders::ALL).border_type(BorderType::Rounded).border_style(Style::default().fg(C_ROSE)))
+                            .data(&cost_bars)
+                            .bar_width(5)
+                            .bar_gap(1)
+                            .bar_style(Style::default().fg(C_ROSE))
+                            .value_style(Style::default().fg(C_SURFACE).bg(C_ROSE));
+
+                        let barchart_tokens = ratatui::widgets::BarChart::default()
+                            .block(Block::default().title(" Daily Tokens (k) ").borders(Borders::ALL).border_type(BorderType::Rounded).border_style(Style::default().fg(C_GREEN)))
+                            .data(&token_bars)
+                            .bar_width(5)
+                            .bar_gap(1)
+                            .bar_style(Style::default().fg(C_GREEN))
+                            .value_style(Style::default().fg(C_SURFACE).bg(C_GREEN));
+
+                        f.render_widget(barchart_cost, top_chunks[0]);
+                        f.render_widget(barchart_tokens, top_chunks[1]);
+
+                        // 2. Model Breakdown
+                        let mut model_lines = vec![
+                            Line::from(vec![Span::styled("  >_ Model Usage Breakdown", Style::default().fg(C_MAUVE).add_modifier(Modifier::BOLD))]),
+                            Line::from(format!("  Total Spend: ${:.4}", g_stats.total_cost)),
+                            Line::from(""),
+                        ];
+                        
+                        let mut models: Vec<_> = g_stats.models.iter().collect();
+                        models.sort_by(|a, b| b.1.cost.partial_cmp(&a.1.cost).unwrap_or(std::cmp::Ordering::Equal));
+                        
+                        for (m, s) in models {
+                            let bar_len = ((s.cost / g_stats.total_cost.max(0.0001)) * 20.0).round() as usize;
+                            let bar_str = format!("{}{} ${:.4}", "█".repeat(bar_len), "░".repeat(20usize.saturating_sub(bar_len)), s.cost);
+                            model_lines.push(Line::from(vec![
+                                Span::styled(format!("  {:<20} ", m), Style::default().add_modifier(Modifier::BOLD)),
+                                Span::styled(bar_str, Style::default().fg(C_MAUVE)),
+                                Span::raw(format!("   ({} runs, {} tokens)", s.runs, s.total_tokens))
+                            ]));
+                        }
+
+                        let model_widget = Paragraph::new(model_lines)
+                            .block(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded).border_style(Style::default().fg(C_LAVENDER)));
+                        
+                        f.render_widget(model_widget, chunks[1]);
+                    } else {
+                        let msg = Paragraph::new("No Groq analytics data found. Run `mig run` to generate stats.")
+                            .alignment(Alignment::Center)
+                            .block(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded));
+                        f.render_widget(msg, right_chunk);
                     }
                 }
                 _ => {}
