@@ -36,6 +36,10 @@ pub struct ContributionCalendar {
     pub weeks: Vec<ContributionWeek>,
     pub username: String,
     pub fetched_at: String,
+    pub rate_limit_limit: String,
+    pub rate_limit_remaining: String,
+    pub rate_limit_used: String,
+    pub rate_limit_reset: i64,
 }
 
 pub struct GitHubContributionService {
@@ -64,8 +68,8 @@ impl GitHubContributionService {
                 if let Ok(cached) = serde_json::from_str::<ContributionCalendar>(&content) {
                     if let Ok(fetched) = chrono::DateTime::parse_from_rfc3339(&cached.fetched_at) {
                         let now = Utc::now();
-                        // Cache for 60 minutes
-                        if now.signed_duration_since(fetched.with_timezone(&Utc)).num_minutes() < 60 {
+                                                // Cache for 30 seconds
+                        if now.signed_duration_since(fetched.with_timezone(&Utc)).num_seconds() < 30 {
                             return Ok(cached);
                         }
                     }
@@ -112,9 +116,13 @@ impl GitHubContributionService {
             .await
             .map_err(|e| format!("Network error: {}", e))?;
             
-        let status = resp.status();
-        let json_resp: serde_json::Value = resp.json().await.map_err(|e| format!("JSON parsing error: {}", e))?;
+                let status = resp.status();
+        let rate_limit_limit = resp.headers().get("x-ratelimit-limit").and_then(|v| v.to_str().ok()).unwrap_or("5000").to_string();
+        let rate_limit_remaining = resp.headers().get("x-ratelimit-remaining").and_then(|v| v.to_str().ok()).unwrap_or("0").to_string();
+        let rate_limit_used = resp.headers().get("x-ratelimit-used").and_then(|v| v.to_str().ok()).unwrap_or("0").to_string();
+        let rate_limit_reset = resp.headers().get("x-ratelimit-reset").and_then(|v| v.to_str().ok()).unwrap_or("0").parse::<i64>().unwrap_or(0);
         
+        let json_resp: serde_json::Value = resp.json().await.map_err(|e| format!("JSON parsing error: {}", e))?;
         if !status.is_success() {
             if let Some(msg) = json_resp.get("message").and_then(|m| m.as_str()) {
                 return Err(format!("GitHub Auth Error: {}", msg));
@@ -172,13 +180,17 @@ impl GitHubContributionService {
             }
         }
         
-        let cal = ContributionCalendar {
+                let cal = ContributionCalendar {
             total_contributions,
             colors,
             months,
             weeks,
             username: username.to_string(),
             fetched_at: Utc::now().to_rfc3339(),
+            rate_limit_limit,
+            rate_limit_remaining,
+            rate_limit_used,
+            rate_limit_reset,
         };
         
         // Cache the result

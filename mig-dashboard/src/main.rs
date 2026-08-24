@@ -472,24 +472,51 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                     let p_bars = p_bars.min(20);
                     let bar_str = format!("{}{} {}%", "█".repeat(p_bars), "░".repeat(20 - p_bars), app.api_status.limit_percent.round());
 
-                    let status_text = vec![
+                    let mut status_text = vec![
                         Line::from(""),
-                        Line::from(vec![Span::styled("  >_ MIG Dashboard (v0.1.0)", Style::default().fg(C_GREEN).add_modifier(Modifier::BOLD))]),
+                        Line::from(vec![Span::styled("  >_ LLM API Status", Style::default().fg(C_GREEN).add_modifier(Modifier::BOLD))]),
+                        Line::from(format!("  Model:      {}", app.api_status.model_name)),
+                        Line::from(format!("  Account:    {}", app.api_status.account_tier)),
+                        Line::from(vec![Span::raw("  Usage:      "), Span::styled(format!("[{}] {}", bar_str, app.api_status.limit_info), Style::default().fg(C_GREEN))]),
                         Line::from(""),
-                        Line::from("  Visit https://github.com/your/repo for up-to-date"),
-                        Line::from("  information on rate limits and credits"),
-                        Line::from(""),
-                        Line::from(vec![Span::styled("  Model:                ", Style::default().add_modifier(Modifier::BOLD)), Span::raw(app.api_status.model_name.clone())]),
-                        Line::from(vec![Span::styled("  Directory:            ", Style::default().add_modifier(Modifier::BOLD)), Span::raw(cwd_str)]),
-                        Line::from(vec![Span::styled("  Permissions:          ", Style::default().add_modifier(Modifier::BOLD)), Span::raw("Workspace (Auto-commit)")]),
-                        Line::from(vec![Span::styled("  Account:              ", Style::default().add_modifier(Modifier::BOLD)), Span::raw(app.api_status.account_tier.clone())]),
-                        Line::from(vec![Span::styled("  Collaboration mode:   ", Style::default().add_modifier(Modifier::BOLD)), Span::raw("Default")]),
-                        Line::from(""),
-                        Line::from(vec![Span::styled("  Limits / Usage:       ", Style::default().add_modifier(Modifier::BOLD)), Span::styled(format!("[{}] {}", bar_str, app.api_status.limit_info), Style::default().fg(C_GREEN))]),
-                        Line::from(""),
-                        Line::from(vec![Span::styled("  Tip: ", Style::default().fg(C_YELLOW).add_modifier(Modifier::BOLD)), Span::raw("MIG dynamically routes your commands. API stats are")]),
-                        Line::from("       fetched live directly via HTTP headers and endpoints!"),
+                        Line::from(vec![Span::styled("  GitHub API", Style::default().add_modifier(Modifier::BOLD))]),
+                        Line::from("  ────────────────────────────"),
                     ];
+
+                    if let Some(cal) = &app.github_cal {
+                        let now = chrono::Utc::now();
+                        let reset_dt = chrono::DateTime::from_timestamp(cal.rate_limit_reset, 0).unwrap_or(now);
+                        let reset_diff = reset_dt.signed_duration_since(now);
+                        let mut reset_str = "Reset in past".to_string();
+                        if reset_diff.num_seconds() > 0 {
+                            let m = reset_diff.num_minutes();
+                            let s = reset_diff.num_seconds() % 60;
+                            reset_str = format!("{}m {}s", m, s);
+                        }
+                        
+                        let fetched_dt = chrono::DateTime::parse_from_rfc3339(&cal.fetched_at).map(|dt| dt.with_timezone(&chrono::Utc)).unwrap_or(now);
+                        let fetched_diff = now.signed_duration_since(fetched_dt);
+                        let fetched_str = if fetched_diff.num_seconds() < 60 {
+                            format!("{} sec ago", fetched_diff.num_seconds())
+                        } else {
+                            format!("{} min ago", fetched_diff.num_minutes())
+                        };
+
+                        status_text.push(Line::from(vec![Span::styled("  ● Connected", Style::default().fg(C_GREEN))]));
+                        status_text.push(Line::from(""));
+                        status_text.push(Line::from(vec![Span::styled("  GraphQL", Style::default().add_modifier(Modifier::BOLD))]));
+                        status_text.push(Line::from(format!("    Limit:       {} / hour", cal.rate_limit_limit)));
+                        status_text.push(Line::from(format!("    Remaining:   {}", cal.rate_limit_remaining)));
+                        status_text.push(Line::from(format!("    Used:        {}", cal.rate_limit_used)));
+                        status_text.push(Line::from(format!("    Reset:       {}", reset_str)));
+                        status_text.push(Line::from(""));
+                        status_text.push(Line::from(vec![Span::styled("  Contribution Calendar", Style::default().add_modifier(Modifier::BOLD))]));
+                        status_text.push(Line::from(format!("    Last fetch:  {}", fetched_str)));
+                        let cache_status = if fetched_diff.num_seconds() < 30 { "Valid" } else { "Stale" };
+                        status_text.push(Line::from(vec![Span::raw("    Cache:       "), Span::styled(cache_status, Style::default().fg(C_YELLOW))]));
+                    } else {
+                        status_text.push(Line::from(vec![Span::styled("  ○ Disconnected / Auth Error", Style::default().fg(C_ROSE))]));
+                    }
                     let status_widget = Paragraph::new(status_text)
                         .block(Block::default().title(" System Status ").borders(Borders::ALL).border_type(BorderType::Rounded).border_style(Style::default().fg(C_MAUVE)));
                     f.render_widget(status_widget, right_chunk);
