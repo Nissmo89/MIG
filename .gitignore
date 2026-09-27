@@ -41,3 +41,7 @@ wheels/
 Thumbs.db
 mig-dashboard/target/
 Cargo.lock
+
+# Go binaries
+mig
+mig.exe

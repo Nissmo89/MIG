@@ -1,59 +1,125 @@
 # MIG (Make It Green)
 
-MIG is an auto-contributing bot that runs locally (e.g., on system startup) and pushes code to your GitHub repository to help keep your contribution graph green!
+MIG is an autonomous auto-contributing CLI daemon that keeps your GitHub contribution graph active and green by generating clever DSA code snippets, algorithms, and tricks across multiple languages daily.
 
-It uses LangGraph/LangChain to maintain memory of its past contributions, ensuring it doesn't repeat itself and continues to grow.
+**100% Standalone Go CLI Binary** • **Zero Runtime Dependencies** (No Python, No CGO, No Node.js, No separate TUI binary).
+
+---
 
 ## Features
-- **Personality**: Driven by a `Context.md` file (default is a DSA enthusiast).
-- **Memory**: Uses `SqliteSaver` in LangGraph to remember previous problems it solved.
-- **LLM Support**: Supports Groq and OpenRouter (for a wide variety of models like LLaMA 3, GPT-4, Claude).
-- **Auto Git Push**: Automatically commits and pushes generated code.
 
-## Installation
+- **Zero External Dependencies**: Compiles to a single standalone binary with `CGO_ENABLED=0`. Runs on Windows, macOS, and Linux without needing any C compiler or Python runtime.
+- **Embedded Web Dashboard**: Modern, dark-themed responsive single-page dashboard embedded directly inside the Go binary (`//go:embed`). No web server or Node runtime required.
+- **Multi-Provider LLM Integration**: Lightweight native REST clients for:
+  - **Google Gemini** (`gemini-2.5-flash-lite`, `gemini-1.5-flash`, etc.)
+  - **Groq** (`llama-3.1-8b-instant`, `llama-3.1-70b-versatile`, etc.)
+  - **OpenRouter** (`openrouter/free`, `anthropic/claude-3.5-sonnet`, `openai/gpt-4o`, etc.)
+- **CGO-Free SQLite Memory**: Powered by `modernc.org/sqlite` to store and remember past contributions in `mig_memory.sqlite`, ensuring the bot never repeats itself.
+- **Local & Global Analytics**: Tracks token consumption, latency, and costs across models in `~/.mig/stats.json` and `~/.mig/groq_analytics.json`, with language breakdown in `count.json`.
+- **Autonomous Git Push**: Automatically stages files, generates conventional commit messages, and pushes to remote.
 
-You can install MIG via pip:
+---
 
+## Building from Source
+
+### Prerequisites
+- Go 1.22 or later
+
+### Build Binary
 ```bash
-pip install -e .
+# Build standalone binary (mig.exe on Windows, mig on Unix)
+CGO_ENABLED=0 go build -o mig .
 ```
+
+---
 
 ## Setup
 
-1. **Environment Variables**: Create a `.env` file in the root of your repository where you want to run MIG.
+1. **Environment Variables**: Create a `.env` file in the root of your target repository:
 ```env
-# Use Gemini (Recommended)
+# Google Gemini (Recommended)
 GEMINI_API_KEY=your_gemini_api_key_here
 # GEMINI_MODEL=gemini-2.5-flash-lite
 
-# Or use Groq
+# Or Groq
 GROQ_API_KEY=your_groq_api_key_here
 # GROQ_MODEL=llama-3.1-8b-instant
 
-# Or use OpenRouter
+# Or OpenRouter
 OPENROUTER_API_KEY=your_openrouter_api_key_here
 # OPENROUTER_MODEL=openrouter/free
 ```
 
-2. **Git Repository**: Make sure you are running MIG inside a cloned git repository where you have push access.
+2. **Initialize Repository**:
+```bash
+./mig init
+```
+This initializes git (if missing), creates default `Context.md`, and registers the project in `~/.mig/projects.json`.
 
-3. **Context.md**: Modify `Context.md` to change MIG's personality and what kind of code it should generate.
+3. **Personality Customization**:
+Edit `Context.md` in your repository to customize MIG's personality, preferred languages, and code styling rules.
+
+---
 
 ## Usage
 
-To run MIG manually:
+### Run Contribution
+Generate, write, commit, and push a new contribution:
 ```bash
-mig run
+./mig run
 ```
 
-To see cron installation instructions:
+### Launch Web Dashboard
+Start the local embedded web dashboard and open it automatically in your browser:
 ```bash
-mig install-cron
+./mig dashboard
+# or with alias
+./mig web
+
+# Custom port
+./mig dashboard --port 8080
+```
+The dashboard provides:
+- Real-time token analytics and aggregated cost metrics
+- Active LLM provider statuses
+- Managed repository tracking overview
+- Visual language breakdown
+- Recent commits activity feed
+- An interactive **"Trigger Run"** button for on-demand contributions
+
+### Automation & Scheduling
+To print setup instructions for daily automated execution:
+```bash
+./mig install-cron
+```
+- **Linux / macOS**: Cron schedule via `crontab -e`
+- **Windows**: Windows Task Scheduler via `schtasks`
+
+---
+
+## Architecture
+
+```
+mig/
+├── cmd/               # Cobra CLI commands (root, init, run, cron, dashboard)
+├── internal/
+│   ├── bot/           # Autonomous contribution runner & state orchestrator
+│   │   └── llm/       # REST clients for Gemini, Groq, and OpenRouter
+│   ├── git/           # Git lifecycle execution (os/exec)
+│   ├── memory/        # Pure Go SQLite operations (modernc.org/sqlite)
+│   ├── server/        # Local HTTP server & API endpoints
+│   └── stats/         # Global & project telemetry (~/.mig/*.json)
+├── web/               # Embedded web dashboard (HTML + Tailwind CSS + JS)
+├── go.mod
+├── go.sum
+└── main.go            # Entry point
 ```
 
-## How it works
+---
 
-1. MIG reads `Context.md` to understand its persona.
-2. It fetches its past memory from a local SQLite database (`mig_memory.sqlite`).
-3. It asks the configured LLM to generate a new, unique contribution.
-4. It saves the generated file, commits it, and pushes it to your remote git repository.
+## Verification & Testing
+
+Run all unit tests:
+```bash
+go test ./... -v
+```
