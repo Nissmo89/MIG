@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MIG Dashboard - Make It Green</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            catBase: '#1e1e2e',
+            catMantle: '#181825',
+            catCrust: '#11111b',
+            catSurface: '#313244',
+            catOverlay: '#45475a',
+            catText: '#cdd6f4',
+            catSubtext: '#a6adc8',
+            catMauve: '#cba6f7',
+            catBlue: '#89b4fa',
+            catGreen: '#a6e3a1',
+            catYellow: '#f9e2af',
+            catRose: '#f5c2e7',
+            catRed: '#f38ba8'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @keyframes pulse-slow {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(0.98); }
+    }
+    .status-pulse { animation: pulse-slow 3s infinite ease-in-out; }
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #181825; }
+    ::-webkit-scrollbar-thumb { background: #313244; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #45475a; }
+  </style>
+</head>
+<body class="bg-catCrust text-catText min-h-screen flex flex-col font-sans antialiased selection:bg-catMauve selection:text-catCrust">
+
+  <!-- Header -->
+  <header class="border-b border-catSurface/60 bg-catMantle/80 backdrop-blur sticky top-0 z-50 px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <div class="h-10 w-10 rounded-xl bg-gradient-to-tr from-catMauve to-catBlue flex items-center justify-center shadow-lg shadow-catMauve/20">
+        <span class="font-black text-xl text-catCrust tracking-wider">M</span>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-catMauve via-catBlue to-catGreen bg-clip-text text-transparent">
+            MIG Dashboard
+          </h1>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-catGreen/10 text-catGreen border border-catGreen/20 font-mono flex items-center gap-1.5">
+            <span class="h-1.5 w-1.5 rounded-full bg-catGreen animate-ping"></span>
+            STANDALONE GO
+          </span>
+        </div>
+        <p class="text-xs text-catSubtext">Make It Green • Autonomous Contribution Daemon</p>
+      </div>
+    </div>
+
+    <!-- Actions & Clock -->
+    <div class="flex items-center gap-4">
+      <div id="liveClock" class="hidden sm:block font-mono text-sm px-3 py-1.5 rounded-lg bg-catSurface/40 border border-catSurface text-catYellow">
+        --:--:--
+      </div>
+
+      <button id="refreshBtn" onclick="fetchData()" class="px-3 py-2 rounded-lg bg-catSurface hover:bg-catOverlay text-xs font-semibold text-catText border border-catOverlay/50 transition flex items-center gap-1.5 active:scale-95">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+        Refresh
+      </button>
+
+      <button id="triggerRunBtn" onclick="triggerRun()" class="px-4 py-2 rounded-lg bg-gradient-to-r from-catGreen to-emerald-400 hover:from-emerald-400 hover:to-catGreen text-catCrust font-bold text-xs tracking-wide shadow-lg shadow-catGreen/20 transition transform active:scale-95 flex items-center gap-2">
+        <svg id="runIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <span id="runBtnText">TRIGGER RUN</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="fixed bottom-6 right-6 z-50 transform transition-all duration-300 translate-y-24 opacity-0 pointer-events-none max-w-md p-4 rounded-xl shadow-2xl border text-sm">
+  </div>
+
+  <!-- Main Content -->
+  <main class="flex-1 p-6 max-w-7xl w-full mx-auto space-y-6">
+
+    <!-- KPI Metric Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="p-5 rounded-2xl bg-catMantle border border-catSurface/70 shadow-sm relative overflow-hidden group">
+        <div class="absolute -right-4 -bottom-4 w-20 h-20 bg-catMauve/5 rounded-full blur-xl group-hover:bg-catMauve/10 transition"></div>
+        <p class="text-xs font-medium text-catSubtext uppercase tracking-wider">Lifetime Tokens</p>
+        <h3 id="lifetimeTokens" class="text-2xl font-black text-catMauve mt-1 font-mono">0</h3>
+        <p class="text-xs text-catSubtext/80 mt-2 flex items-center gap-1">
+          <span class="text-catGreen">↑ Peak:</span> <span id="peakTokens" class="font-mono">0</span>
+        </p>
+      </div>
+
+      <div class="p-5 rounded-2xl bg-catMantle border border-catSurface/70 shadow-sm relative overflow-hidden group">
+        <div class="absolute -right-4 -bottom-4 w-20 h-20 bg-catGreen/5 rounded-full blur-xl group-hover:bg-catGreen/10 transition"></div>
+        <p class="text-xs font-medium text-catSubtext uppercase tracking-wider">Estimated Cost</p>
+        <h3 id="totalCost" class="text-2xl font-black text-catGreen mt-1 font-mono">$0.0000</h3>
+        <p class="text-xs text-catSubtext/80 mt-2">Aggregated across all models</p>
+      </div>
+
+      <div class="p-5 rounded-2xl bg-catMantle border border-catSurface/70 shadow-sm relative overflow-hidden group">
+        <div class="absolute -right-4 -bottom-4 w-20 h-20 bg-catBlue/5 rounded-full blur-xl group-hover:bg-catBlue/10 transition"></div>
+        <p class="text-xs font-medium text-catSubtext uppercase tracking-wider">Tracked Projects</p>
+        <h3 id="projectsCount" class="text-2xl font-black text-catBlue mt-1 font-mono">0</h3>
+        <p class="text-xs text-catSubtext/80 mt-2">Active Git workspaces</p>
+      </div>
+
+      <div class="p-5 rounded-2xl bg-catMantle border border-catSurface/70 shadow-sm relative overflow-hidden group">
+        <div class="absolute -right-4 -bottom-4 w-20 h-20 bg-catYellow/5 rounded-full blur-xl group-hover:bg-catYellow/10 transition"></div>
+        <p class="text-xs font-medium text-catSubtext uppercase tracking-wider">Longest Task</p>
+        <h3 id="longestTask" class="text-2xl font-black text-catYellow mt-1 font-mono">0.0s</h3>
+        <p class="text-xs text-catSubtext/80 mt-2">Latency recorded</p>
+      </div>
+    </div>
+
+    <!-- Active LLM Providers Panel -->
+    <div class="p-5 rounded-2xl bg-catMantle border border-catSurface/70">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-bold uppercase tracking-wider text-catMauve flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+          LLM Provider Status
+        </h2>
+        <span class="text-xs text-catSubtext">Configured in .env</span>
+      </div>
+      <div id="providersList" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <!-- Rendered via JS -->
+      </div>
+    </div>
+
+    <!-- 2 Column Layout: Languages + Tracked Projects -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      <!-- Languages Breakdown -->
+      <div class="p-5 rounded-2xl bg-catMantle border border-catSurface/70 flex flex-col">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-sm font-bold uppercase tracking-wider text-catBlue flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+            Language Breakdown
+          </h2>
+          <span class="text-xs text-catSubtext">from count.json</span>
+        </div>
+        <div id="languagesContainer" class="flex-1 space-y-3 flex flex-col justify-center">
+          <p class="text-xs text-catSubtext text-center py-6">No languages tracked yet.</p>
+        </div>
+      </div>
+
+      <!-- Tracked Projects -->
+      <div class="p-5 rounded-2xl bg-catMantle border border-catSurface/70 flex flex-col">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-sm font-bold uppercase tracking-wider text-catYellow flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+            Managed Repositories
+          </h2>
+          <span class="text-xs text-catSubtext">~/.mig/projects.json</span>
+        </div>
+        <div id="projectsList" class="flex-1 space-y-2 overflow-y-auto max-h-60 pr-1">
+          <!-- Rendered via JS -->
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 2 Column Layout: Recent Commits + Model Analytics -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      <!-- Recent Activity / Commits Feed -->
+      <div class="p-5 rounded-2xl bg-catMantle border border-catSurface/70">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-sm font-bold uppercase tracking-wider text-catRose flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            Recent Git Commits
+          </h2>
+          <span class="text-xs text-catSubtext">Across tracked repos</span>
+        </div>
+        <div id="commitsList" class="space-y-2 overflow-y-auto max-h-72 font-mono text-xs pr-1">
+          <p class="text-catSubtext py-4 text-center">Loading commits...</p>
+        </div>
+      </div>
+
+      <!-- Model Breakdown & Daily Activity -->
+      <div class="p-5 rounded-2xl bg-catMantle border border-catSurface/70">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-sm font-bold uppercase tracking-wider text-catGreen flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+            Model Usage & Daily Analytics
+          </h2>
+          <span class="text-xs text-catSubtext">groq_analytics.json</span>
+        </div>
+        <div id="modelsList" class="space-y-3 overflow-y-auto max-h-72 pr-1">
+          <p class="text-xs text-catSubtext py-4 text-center">Loading analytics...</p>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-catSurface/50 bg-catMantle/40 px-6 py-4 text-center text-xs text-catSubtext">
+    MIG Standalone Binary • Built with Go • No external dependencies
+  </footer>
+
+  <script>
+    // Live Clock
+    function updateClock() {
+      const now = new Date();
+      const el = document.getElementById('liveClock');
+      if (el) {
+        el.textContent = now.toTimeString().split(' ')[0];
+      }
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // Show Notification Toast
+    function showToast(message, isError = false) {
+      const toast = document.getElementById('toast');
+      toast.className = `fixed bottom-6 right-6 z-50 transform transition-all duration-300 max-w-md p-4 rounded-xl shadow-2xl border text-sm ${
+        isError 
+          ? 'bg-catRed/10 border-catRed/30 text-catRed' 
+          : 'bg-catGreen/10 border-catGreen/30 text-catGreen'
+      }`;
+      toast.innerHTML = message;
+      toast.style.opacity = '1';
+      toast.style.transform = 'translateY(0)';
+      toast.style.pointerEvents = 'auto';
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(24px)';
+        toast.style.pointerEvents = 'none';
+      }, 5000);
+    }
+
+    // Trigger Run Function
+    async function triggerRun() {
+      const btn = document.getElementById('triggerRunBtn');
+      const btnText = document.getElementById('runBtnText');
+      const icon = document.getElementById('runIcon');
+
+      btn.disabled = true;
+      btn.classList.add('opacity-75', 'cursor-not-allowed');
+      btnText.textContent = 'RUNNING...';
+      icon.innerHTML = '<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>';
+      icon.classList.add('animate-spin');
+
+      try {
+        const resp = await fetch('/api/run', { method: 'POST' });
+        const data = await resp.json();
+
+        if (resp.ok && data.status === 'success') {
+          showToast(`
+            <div class="font-bold flex items-center gap-1.5">
+              <span>✓</span> Contribution Created & Pushed!
+            </div>
+            <div class="mt-1 text-xs opacity-90 font-mono">
+              <strong>File:</strong> ${data.result.filename}<br>
+              <strong>Message:</strong> ${data.result.commit_message}<br>
+              <strong>Tokens:</strong> ${data.result.total_tokens} • <strong>Time:</strong> ${data.result.duration_seconds.toFixed(2)}s
+            </div>
+          `);
+          fetchData();
+        } else {
+          showToast(`<strong>Error:</strong> ${data.error || 'Failed to execute run'}`, true);
+        }
+      } catch (err) {
+        showToast(`<strong>Request Failed:</strong> ${err.message}`, true);
+      } finally {
+        btn.disabled = false;
+        btn.classList.remove('opacity-75', 'cursor-not-allowed');
+        btnText.textContent = 'TRIGGER RUN';
+        icon.className = 'w-4 h-4';
+        icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>';
+      }
+    }
+
+    // Fetch and Populate Dashboard Data
+    async function fetchData() {
+      try {
+        const [statsRes, provRes, langRes, projRes, commitRes] = await Promise.all([
+          fetch('/api/stats').then(r => r.json()),
+          fetch('/api/providers').then(r => r.json()),
+          fetch('/api/languages').then(r => r.json()),
+          fetch('/api/projects').then(r => r.json()),
+          fetch('/api/commits').then(r => r.json())
+        ]);
+
+        // Render KPIs
+        document.getElementById('lifetimeTokens').textContent = (statsRes.stats?.lifetime_tokens || 0).toLocaleString();
+        document.getElementById('peakTokens').textContent = (statsRes.stats?.peak_tokens || 0).toLocaleString();
+        document.getElementById('longestTask').textContent = `${(statsRes.stats?.longest_task || 0).toFixed(1)}s`;
+        document.getElementById('totalCost').textContent = `$${(statsRes.groq?.total_cost || 0).toFixed(4)}`;
+        document.getElementById('projectsCount').textContent = (projRes?.length || 0);
+
+        // Render Providers
+        const provEl = document.getElementById('providersList');
+        if (provRes && provRes.length > 0) {
+          provEl.innerHTML = provRes.map(p => `
+            <div class="p-3 rounded-xl border ${p.is_active ? 'bg-catSurface/40 border-catGreen/40' : p.configured ? 'bg-catSurface/20 border-catSurface' : 'bg-catSurface/10 border-catSurface/30 opacity-60'} flex flex-col justify-between">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-xs ${p.is_active ? 'text-catGreen' : 'text-catText'}">${p.provider}</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded ${p.is_active ? 'bg-catGreen/20 text-catGreen font-bold' : p.configured ? 'bg-catBlue/10 text-catBlue' : 'bg-catSurface text-catSubtext'}">
+                  ${p.is_active ? 'ACTIVE' : p.configured ? 'READY' : 'OFFLINE'}
+                </span>
+              </div>
+              <div class="mt-2 text-[11px] text-catSubtext font-mono flex items-center justify-between">
+                <span>Model: ${p.model}</span>
+                <span>Key: ${p.masked_key}</span>
+              </div>
+            </div>
+          `).join('');
+        }
+
+        // Render Languages
+        const langEl = document.getElementById('languagesContainer');
+        const langs = langRes || {};
+        const langKeys = Object.keys(langs);
+        if (langKeys.length === 0) {
+          langEl.innerHTML = '<p class="text-xs text-catSubtext text-center py-6">No contributions tracked in count.json yet.</p>';
+        } else {
+          const totalCount = Object.values(langs).reduce((a, b) => a + b, 0);
+          langEl.innerHTML = langKeys.map(k => {
+            const count = langs[k];
+            const pct = totalCount > 0 ? ((count / totalCount) * 100).toFixed(1) : 0;
+            return `
+              <div>
+                <div class="flex justify-between text-xs mb-1 font-mono">
+                  <span class="font-semibold capitalize text-catMauve">${k}</span>
+                  <span class="text-catSubtext">${count} files (${pct}%)</span>
+                </div>
+                <div class="w-full bg-catSurface rounded-full h-2 overflow-hidden">
+                  <div class="bg-gradient-to-r from-catMauve to-catBlue h-2 rounded-full transition-all duration-500" style="width: ${pct}%"></div>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+
+        // Render Projects
+        const projEl = document.getElementById('projectsList');
+        if (projRes && projRes.length > 0) {
+          projEl.innerHTML = projRes.map(p => `
+            <div class="p-2.5 rounded-lg bg-catSurface/30 border border-catSurface/50 text-xs font-mono flex items-center gap-2 hover:bg-catSurface/60 transition group">
+              <span class="text-catGreen text-sm">▶</span>
+              <span class="text-catSubtext group-hover:text-catText transition truncate" title="${p}">${p}</span>
+            </div>
+          `).join('');
+        } else {
+          projEl.innerHTML = '<p class="text-xs text-catSubtext text-center py-4">No projects registered.</p>';
+        }
+
+        // Render Commits
+        const comEl = document.getElementById('commitsList');
+        if (commitRes && commitRes.length > 0) {
+          comEl.innerHTML = commitRes.map(c => `
+            <div class="p-2.5 rounded-lg bg-catSurface/20 border border-catSurface/40 hover:bg-catSurface/40 transition">
+              <span class="text-catMauve font-semibold">${c}</span>
+            </div>
+          `).join('');
+        } else {
+          comEl.innerHTML = '<p class="text-catSubtext py-4 text-center">No recent commits found.</p>';
+        }
+
+        // Render Models Analytics
+        const modEl = document.getElementById('modelsList');
+        const models = statsRes.groq?.models || {};
+        const modelKeys = Object.keys(models);
+        if (modelKeys.length > 0) {
+          modEl.innerHTML = modelKeys.map(m => {
+            const info = models[m];
+            return `
+              <div class="p-3 rounded-xl bg-catSurface/30 border border-catSurface/50 flex items-center justify-between">
+                <div>
+                  <div class="font-semibold text-xs text-catGreen font-mono">${m}</div>
+                  <div class="text-[11px] text-catSubtext mt-0.5">${info.runs} runs • ${info.total_tokens.toLocaleString()} tokens</div>
+                </div>
+                <div class="font-mono text-xs font-bold text-catYellow">$${info.cost.toFixed(4)}</div>
+              </div>
+            `;
+          }).join('');
+        } else {
+          modEl.innerHTML = '<p class="text-xs text-catSubtext text-center py-4">No model telemetry available yet.</p>';
+        }
+
+      } catch (e) {
+        console.error("Dashboard refresh error:", e);
+      }
+    }
+
+    // Initial Fetch
+    fetchData();
+    // Auto-refresh every 15 seconds
+    setInterval(fetchData, 15000);
+  </script>
+</body>
+</html>
